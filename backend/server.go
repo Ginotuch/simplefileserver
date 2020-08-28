@@ -13,6 +13,27 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const tpl = `
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>{{.Path}}</title>
+	</head>
+	<body>
+		<h1>Listing for dir: {{.Path}}</h1>
+		<ul>
+			<li><a href = "../">../</a></li>
+			{{range .Entries}}
+				{{if .File}}
+					<li>{{.Name}}</li>
+				{{else}}
+					<li><a href="{{.Name}}/">{{.Name}}/</a></li>
+				{{end}}
+			{{end}}
+		</ul>
+	</body>
+</html>`
+
 type Server interface {
 	Hello(w http.ResponseWriter, req *http.Request)
 	Headers(w http.ResponseWriter, req *http.Request)
@@ -22,7 +43,8 @@ type Server interface {
 }
 
 type ServerStruct struct {
-	RootDir string
+	rootDir      string
+	walkTemplate *template.Template
 }
 
 func (s *ServerStruct) Hello(w http.ResponseWriter, req *http.Request) {
@@ -63,33 +85,8 @@ type walkData struct {
 }
 
 func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
-	const tpl = `
-<!DOCTYPE html>
-<html>
-	<head>
-		<title>{{.Path}}</title>
-	</head>
-	<body>
-		<h1>Listing for dir: {{.Path}}</h1>
-		<ul>
-			<li><a href = "../">../</a></li>
-			{{range .Entries}}
-				{{if .File}}
-					<li>{{.Name}}</li>
-				{{else}}
-					<li><a href="{{.Name}}/">{{.Name}}/</a></li>
-				{{end}}
-			{{end}}
-		</ul>
-	</body>
-</html>`
-	t, err := template.New("walkHTML").Parse(tpl)
-	if err != nil {
-		log.Fatal("Failed to parse template")
-	}
-
 	requestedFolder := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
-	absPath := path.Join(s.RootDir, requestedFolder)
+	absPath := path.Join(s.rootDir, requestedFolder)
 
 	fileInfo, err := os.Stat(absPath)
 	if unix.Access(absPath, unix.R_OK) != nil || err != nil || !fileInfo.IsDir() {
@@ -116,8 +113,18 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
 		data.Entries = append(data.Entries, entry{Name: f.Name(), File: !f.IsDir()})
 	}
 
-	err = t.Execute(w, data)
+	err = s.walkTemplate.Execute(w, data)
 	if err != nil {
 		log.Fatal("Unable to write response")
 	}
+}
+
+func NewServer(rootDir string) Server {
+	t, err := template.New("walkHTML").Parse(tpl)
+	if err != nil {
+		log.Fatal("Failed to parse template")
+	}
+	newServer := &ServerStruct{rootDir: rootDir, walkTemplate: t}
+
+	return newServer
 }

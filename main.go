@@ -17,7 +17,7 @@ func main() {
 
 	fmt.Printf("registered root dir \"%s\"\n", rootDir)
 
-	var newServer backend.Server = &backend.ServerStruct{RootDir: rootDir}
+	newServer := backend.NewServer(rootDir)
 
 	mux := http.NewServeMux()
 
