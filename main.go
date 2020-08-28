@@ -38,6 +38,7 @@ func (s *ServerStruct) Headers(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprintf(w, "my404\n")
 }
 
