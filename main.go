@@ -69,11 +69,14 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
 
 	pageHtml += fmt.Sprintf("<h1>Listing for dir: %s</h1>", requestedFolder)
 	pageHtml += fmt.Sprintf("<ul>")
+	if requestedFolder != "/" {
+		pageHtml += fmt.Sprint("<li><a href = \"../\">../</a></li>")
+	}
 	files, err := ioutil.ReadDir(absPath)
 	for _, f := range files {
 		name := f.Name()
 		if f.IsDir() {
-			name += "/"
+			name = "<a href=\"" + name + "/\">" + name + "/</a>"
 		}
 		pageHtml += fmt.Sprintf("<li>%s</li>", name)
 	}
