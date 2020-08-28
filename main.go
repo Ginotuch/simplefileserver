@@ -59,22 +59,27 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
 		return
 	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	requestedFolder += "/"
 	absPath += "/"
+	pageHtml := fmt.Sprintf("<!DOCTYPE html><html><head><title>%s</title></head><body>", requestedFolder)
 
-	_, err = fmt.Fprintf(w, "requestedFolder: %s\nabsPath: %s\n\n", requestedFolder, absPath)
-	if err != nil{
-		log.Fatal("Unable to send response")
-	}
-
-	fmt.Fprintf(w, "Listing for dir: %s\n", requestedFolder)
+	pageHtml += fmt.Sprintf("<h1>Listing for dir: %s</h1>", requestedFolder)
+	pageHtml += fmt.Sprintf("<ul>")
 	files, err := ioutil.ReadDir(absPath)
-	for _, f := range files{
+	for _, f := range files {
 		name := f.Name()
-		if f.IsDir(){
+		if f.IsDir() {
 			name += "/"
 		}
-		fmt.Fprintf(w, " - %s\n", name)
+		pageHtml += fmt.Sprintf("<li>%s</li>", name)
+	}
+	pageHtml += fmt.Sprintf("</ul></body></html>")
+	_, err = fmt.Fprint(w, pageHtml)
+	if err != nil {
+		log.Fatal("Unable to write response")
 	}
 }
 
