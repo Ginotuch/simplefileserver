@@ -5,7 +5,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"simplefileserver/backend"
+
+	"github.com/Ginotuch/simplefileserver/backend"
 )
 
 func main() {

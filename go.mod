@@ -1,4 +1,4 @@
-module simplefileserver
+module github.com/Ginotuch/simplefileserver
 
 go 1.15
 

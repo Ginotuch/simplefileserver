@@ -2,13 +2,15 @@ package backend
 
 import (
 	"fmt"
-	"golang.org/x/sys/unix"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path"
 	"strings"
+
+	"golang.org/x/sys/unix"
 )
 
 type Server interface {
@@ -50,14 +52,52 @@ func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "Home\n")
 }
 
+type entry struct {
+	Name string
+	File bool
+}
+
+type walkData struct {
+	Path    string
+	Entries []entry
+}
+
 func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
+	const tpl = `
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>{{.Path}}</title>
+	</head>
+	<body>
+		<h1>Listing for dir: {{.Path}}</h1>
+		<ul>
+			<li><a href = "../">../</a></li>
+			{{range .Entries}}
+				{{if .File}}
+					<li>{{.Name}}</li>
+				{{else}}
+					<li><a href="{{.Name}}/">{{.Name}}/</a></li>
+				{{end}}
+			{{end}}
+		</ul>
+	</body>
+</html>`
+	t, err := template.New("walkHTML").Parse(tpl)
+	if err != nil {
+		log.Fatal("Failed to parse template")
+	}
+
 	requestedFolder := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.RootDir, requestedFolder)
 
 	fileInfo, err := os.Stat(absPath)
 	if unix.Access(absPath, unix.R_OK) != nil || err != nil || !fileInfo.IsDir() {
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
+		_, err = fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
+		if err != nil {
+			log.Fatal("Unable to write response")
+		}
 		return
 	}
 
@@ -65,23 +105,18 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
 
 	requestedFolder += "/"
 	absPath += "/"
-	pageHtml := fmt.Sprintf("<!DOCTYPE html><html><head><title>%s</title></head><body>", requestedFolder)
 
-	pageHtml += fmt.Sprintf("<h1>Listing for dir: %s</h1>", requestedFolder)
-	pageHtml += fmt.Sprintf("<ul>")
-	if requestedFolder != "/" {
-		pageHtml += fmt.Sprint("<li><a href = \"../\">../</a></li>")
+	data := walkData{
+		Path:    requestedFolder,
+		Entries: []entry{},
 	}
+
 	files, err := ioutil.ReadDir(absPath)
 	for _, f := range files {
-		name := f.Name()
-		if f.IsDir() {
-			name = "<a href=\"" + name + "/\">" + name + "/</a>"
-		}
-		pageHtml += fmt.Sprintf("<li>%s</li>", name)
+		data.Entries = append(data.Entries, entry{Name: f.Name(), File: !f.IsDir()})
 	}
-	pageHtml += fmt.Sprintf("</ul></body></html>")
-	_, err = fmt.Fprint(w, pageHtml)
+
+	err = t.Execute(w, data)
 	if err != nil {
 		log.Fatal("Unable to write response")
 	}
