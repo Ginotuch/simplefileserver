@@ -31,7 +31,7 @@ const walkTemplate = `
 				{{if .File}}
 					<li><a href="/{{.DownloadPath}}">{{.Name}}</a></li>
 				{{else}}
-					<li><a href="{{.Name}}/">{{.Name}}/</a>  <a href="/{{.DownloadPath}}">zip download</a></li>
+					<li><a href="{{.Name}}/">{{.Name}}/</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="/{{.DownloadPath}}">zip download</a></li>
 				{{end}}
 			{{end}}
 		</ul>
@@ -42,9 +42,10 @@ type Server interface {
 	E404(w http.ResponseWriter, req *http.Request)
 	Home(w http.ResponseWriter, req *http.Request)
 	Walk(w http.ResponseWriter, req *http.Request)
+	Favicon(w http.ResponseWriter, req *http.Request)
 	Download(w http.ResponseWriter, req *http.Request)
 	DownloadFile(w http.ResponseWriter, req *http.Request, absPath string)
-	DownloadFolder(w http.ResponseWriter, req *http.Request, absPath string)
+	DownloadFolder(w http.ResponseWriter, absPath string)
 }
 
 type ServerStruct struct {
@@ -83,6 +84,26 @@ type entry struct {
 type walkData struct {
 	Path    string
 	Entries []entry
+}
+
+func (s *ServerStruct) Favicon(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "image/x-icon")
+	file, err := os.Open("favicon.ico")
+	if err != nil {
+		log.Println("Can't open favicon.ico")
+		return
+	}
+
+	var ftime time.Time
+	fileStat, err := os.Stat("favicon.ico")
+
+	if err != nil {
+		ftime = time.Time{}
+	} else {
+		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
+	}
+
+	http.ServeContent(w, req, "favicon.ico", ftime, file)
 }
 
 func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {

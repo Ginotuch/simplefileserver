@@ -23,6 +23,7 @@ func main() {
 
 	mux.HandleFunc("/download/", newServer.Download)
 	mux.HandleFunc("/walk/", newServer.Walk)
+	mux.HandleFunc("/favicon.ico", newServer.Favicon)
 	mux.HandleFunc("/", newServer.Home)
 
 	_ = http.ListenAndServe(":8090", mux)
