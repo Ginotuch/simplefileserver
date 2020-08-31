@@ -7,7 +7,12 @@ import (
 	"os"
 
 	"github.com/Ginotuch/simplefileserver/backend"
+	auth "github.com/abbot/go-http-auth"
 )
+
+func Secret(user, realm string) string {
+	return "change me ;)"
+}
 
 func main() {
 	if len(os.Args) != 2 {
@@ -19,11 +24,13 @@ func main() {
 
 	newServer := backend.NewServer(rootDir)
 
+	authenticator := auth.NewBasicAuthenticator("example.com", Secret)
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/download/", newServer.Download)
-	mux.HandleFunc("/walk/", newServer.Walk)
-	mux.HandleFunc("/favicon.ico", newServer.Favicon)
+	mux.HandleFunc("/download/", authenticator.Wrap(newServer.Download))
+	mux.HandleFunc("/walk/", authenticator.Wrap(newServer.Walk))
+	mux.HandleFunc("/favicon.ico", authenticator.Wrap(newServer.Favicon))
 	mux.HandleFunc("/", newServer.Home)
 
 	_ = http.ListenAndServe(":8090", mux)

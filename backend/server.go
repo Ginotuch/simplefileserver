@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	auth "github.com/abbot/go-http-auth"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -41,10 +43,10 @@ const walkTemplate = `
 type Server interface {
 	E404(w http.ResponseWriter, req *http.Request)
 	Home(w http.ResponseWriter, req *http.Request)
-	Walk(w http.ResponseWriter, req *http.Request)
-	Favicon(w http.ResponseWriter, req *http.Request)
-	Download(w http.ResponseWriter, req *http.Request)
-	DownloadFile(w http.ResponseWriter, req *http.Request, absPath string)
+	Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest)
+	Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest)
+	Download(w http.ResponseWriter, req *auth.AuthenticatedRequest)
+	DownloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string)
 	DownloadFolder(w http.ResponseWriter, absPath string)
 }
 
@@ -86,7 +88,7 @@ type walkData struct {
 	Entries []entry
 }
 
-func (s *ServerStruct) Favicon(w http.ResponseWriter, req *http.Request) {
+func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	w.Header().Set("Content-Type", "image/x-icon")
 	file, err := os.Open("favicon.ico")
 	if err != nil {
@@ -103,10 +105,34 @@ func (s *ServerStruct) Favicon(w http.ResponseWriter, req *http.Request) {
 		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
 	}
 
-	http.ServeContent(w, req, "favicon.ico", ftime, file)
+	r := http.Request{
+		Method:           req.Method,
+		URL:              req.URL,
+		Proto:            req.Proto,
+		ProtoMajor:       req.ProtoMajor,
+		ProtoMinor:       req.ProtoMinor,
+		Header:           req.Header,
+		Body:             req.Body,
+		GetBody:          req.GetBody,
+		ContentLength:    req.ContentLength,
+		TransferEncoding: req.TransferEncoding,
+		Close:            req.Close,
+		Host:             req.Host,
+		Form:             req.Form,
+		PostForm:         req.PostForm,
+		MultipartForm:    req.MultipartForm,
+		Trailer:          req.Trailer,
+		RemoteAddr:       req.RemoteAddr,
+		RequestURI:       req.RequestURI,
+		TLS:              req.TLS,
+		Cancel:           req.Cancel,
+		Response:         req.Response,
+	}
+
+	http.ServeContent(w, &r, "favicon.ico", ftime, file)
 }
 
-func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
+func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	requestedFolder := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.rootDir, requestedFolder)
 
@@ -145,7 +171,7 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (s *ServerStruct) Download(w http.ResponseWriter, req *http.Request) {
+func (s *ServerStruct) Download(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	requestedThing := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.rootDir, requestedThing)
 
@@ -200,7 +226,7 @@ func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, absPath string) {
 	}
 }
 
-func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *http.Request, absPath string) {
+func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
 	file, err := os.Open(absPath)
 	if err != nil {
 		_, err = fmt.Fprintf(w, "Unable to get file")
@@ -220,8 +246,30 @@ func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *http.Request, ab
 	}
 
 	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s\"", path.Base(req.URL.Path)))
-
-	http.ServeContent(w, req, path.Base(req.URL.Path), ftime, file)
+	r := http.Request{
+		Method:           req.Method,
+		URL:              req.URL,
+		Proto:            req.Proto,
+		ProtoMajor:       req.ProtoMajor,
+		ProtoMinor:       req.ProtoMinor,
+		Header:           req.Header,
+		Body:             req.Body,
+		GetBody:          req.GetBody,
+		ContentLength:    req.ContentLength,
+		TransferEncoding: req.TransferEncoding,
+		Close:            req.Close,
+		Host:             req.Host,
+		Form:             req.Form,
+		PostForm:         req.PostForm,
+		MultipartForm:    req.MultipartForm,
+		Trailer:          req.Trailer,
+		RemoteAddr:       req.RemoteAddr,
+		RequestURI:       req.RequestURI,
+		TLS:              req.TLS,
+		Cancel:           req.Cancel,
+		Response:         req.Response,
+	}
+	http.ServeContent(w, &r, path.Base(req.URL.Path), ftime, file)
 	_ = file.Close()
 }
 

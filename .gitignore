@@ -115,3 +115,8 @@ venv.bak/
 # pgf files - matplotlib diagram files
 *.pgf
 
+# TLS certs
+*.crt
+*.csr
+*.key
+
