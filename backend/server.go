@@ -62,7 +62,16 @@ func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
 		s.E404(w, req)
 		return
 	}
-	fmt.Fprintf(w, "Home\n")
+	homeHTML := `
+<html>
+   <head>
+      <style>body{width:9px;height:9px;position:absolute;top:0;bottom:0;left:0;right:0;margin:auto;}</style>
+      <title>hey</title>
+   </head>
+   <body><a href="/walk/">walk</a></body>
+</html>
+`
+	fmt.Fprint(w, homeHTML)
 }
 
 type entry struct {
