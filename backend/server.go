@@ -167,7 +167,7 @@ func (s *ServerStruct) Download(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, absPath string) {
-	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s.zip\"", "test.zip"))
+	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s.zip\"", path.Base(absPath)))
 	zipWriter := zip.NewWriter(w)
 
 	walkErr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
