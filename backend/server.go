@@ -1,13 +1,16 @@
 package backend
 
 import (
+	"archive/zip"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -42,6 +45,7 @@ type Server interface {
 	Home(w http.ResponseWriter, req *http.Request)
 	Walk(w http.ResponseWriter, req *http.Request)
 	Download(w http.ResponseWriter, req *http.Request)
+	DownloadFile(w http.ResponseWriter, req *http.Request, absPath string)
 }
 
 type ServerStruct struct {
@@ -127,15 +131,58 @@ func (s *ServerStruct) Download(w http.ResponseWriter, req *http.Request) {
 	absPath := path.Join(s.rootDir, requestedThing)
 
 	fileInfo, err := os.Stat(absPath)
-	if unix.Access(absPath, unix.R_OK) != nil || err != nil || fileInfo.IsDir() {
+	if unix.Access(absPath, unix.R_OK) != nil || err != nil {
 		w.WriteHeader(http.StatusNotFound)
-		_, err = fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
+		_, err = fmt.Fprintf(w, "Either the requested item doesn't exist or access was denied")
 		if err != nil {
 			log.Fatal("Unable to write response")
 		}
 		return
 	}
 
+	if fileInfo.IsDir() {
+		s.DownloadFolder(w, req, absPath)
+	} else {
+		s.DownloadFile(w, req, absPath)
+	}
+}
+
+func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, req *http.Request, absPath string) {
+	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s\".zip", "test.zip"))
+	zipWriter := zip.NewWriter(w)
+
+	walkerr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
+		fmt.Println("zipping file")
+		if info.IsDir() {
+			return nil
+		}
+		zipPath := path.Join(strings.Split(filePath, "/")[len(strings.Split(absPath, "/")):]...)
+		fileWriter, err := zipWriter.CreateHeader(&zip.FileHeader{Name: zipPath, Method: zip.Store})
+		if err != nil {
+			log.Println("couldn't make file in zip")
+			log.Println(err)
+		}
+		fileReader, err := os.Open(filePath)
+		_, err = io.Copy(fileWriter, fileReader)
+		if err != nil {
+			log.Println("(most likely download stopped)")
+			log.Println(err)
+		}
+		//files = append(files, zipPath)
+		return nil
+	})
+	if walkerr != nil {
+		log.Println("walk error")
+		log.Println(walkerr)
+	}
+	err := zipWriter.Close()
+	if err != nil {
+		log.Println("failed to close zip file")
+		log.Println(err)
+	}
+}
+
+func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *http.Request, absPath string) {
 	file, err := os.Open(absPath)
 	if err != nil {
 		_, err = fmt.Fprintf(w, "Unable to get file")
