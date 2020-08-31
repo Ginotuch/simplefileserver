@@ -21,6 +21,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("/download/", newServer.Download)
 	mux.HandleFunc("/walk/", newServer.Walk)
 	mux.HandleFunc("/hello", newServer.Hello)
 	mux.HandleFunc("/headers", newServer.Headers)
