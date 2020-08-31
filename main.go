@@ -33,5 +33,5 @@ func main() {
 	mux.HandleFunc("/favicon.ico", authenticator.Wrap(newServer.Favicon))
 	mux.HandleFunc("/", newServer.Home)
 
-	_ = http.ListenAndServe(":8090", mux)
+	_ = http.ListenAndServeTLS(":8090", "localhost.crt", "localhost.key", mux)
 }
