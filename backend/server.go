@@ -31,7 +31,7 @@ const tpl = `
 				{{if .File}}
 					<li><a href="/{{.DownloadPath}}">{{.Name}}</a></li>
 				{{else}}
-					<li><a href="{{.Name}}/">{{.Name}}/</a></li>
+					<li><a href="{{.Name}}/">{{.Name}}/</a>  <a href="/{{.DownloadPath}}">zip download</a></li>
 				{{end}}
 			{{end}}
 		</ul>
@@ -39,8 +39,6 @@ const tpl = `
 </html>`
 
 type Server interface {
-	Hello(w http.ResponseWriter, req *http.Request)
-	Headers(w http.ResponseWriter, req *http.Request)
 	E404(w http.ResponseWriter, req *http.Request)
 	Home(w http.ResponseWriter, req *http.Request)
 	Walk(w http.ResponseWriter, req *http.Request)
@@ -134,7 +132,7 @@ func (s *ServerStruct) Download(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, req *http.Request, absPath string) {
-	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s\".zip", "test.zip"))
+	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s.zip\"", "test.zip"))
 	zipWriter := zip.NewWriter(w)
 
 	walkerr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
