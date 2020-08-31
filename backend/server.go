@@ -244,8 +244,7 @@ func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *auth.Authenticat
 	} else {
 		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
 	}
-
-	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s\"", path.Base(req.URL.Path)))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", path.Base(req.URL.Path)))
 	r := http.Request{
 		Method:           req.Method,
 		URL:              req.URL,
