@@ -53,20 +53,6 @@ type ServerStruct struct {
 	walkTemplate *template.Template
 }
 
-func (s *ServerStruct) Hello(w http.ResponseWriter, req *http.Request) {
-
-	fmt.Fprintf(w, "Hello\n")
-}
-
-func (s *ServerStruct) Headers(w http.ResponseWriter, req *http.Request) {
-
-	for name, headers := range req.Header {
-		for _, h := range headers {
-			fmt.Fprintf(w, "%v: %v\n", name, h)
-		}
-	}
-}
-
 func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprintf(w, "my404\n")
