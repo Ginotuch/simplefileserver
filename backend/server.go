@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const tpl = `
+const walkTemplate = `
 <!DOCTYPE html>
 <html>
 	<head>
@@ -44,6 +44,7 @@ type Server interface {
 	Walk(w http.ResponseWriter, req *http.Request)
 	Download(w http.ResponseWriter, req *http.Request)
 	DownloadFile(w http.ResponseWriter, req *http.Request, absPath string)
+	DownloadFolder(w http.ResponseWriter, req *http.Request, absPath string)
 }
 
 type ServerStruct struct {
@@ -99,9 +100,13 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *http.Request) {
 		Entries: []entry{},
 	}
 
-	files, err := ioutil.ReadDir(absPath)
+	files, err := ioutil.ReadDir(absPath) // todo: race condition with above unix.Access check (folder permission removal)
 	for _, f := range files {
-		data.Entries = append(data.Entries, entry{Name: f.Name(), File: !f.IsDir(), DownloadPath: path.Join("download", requestedFolder, f.Name())})
+		data.Entries = append(data.Entries, entry{
+			Name:         f.Name(),
+			File:         !f.IsDir(),
+			DownloadPath: path.Join("download", requestedFolder, f.Name()),
+		})
 	}
 
 	err = s.walkTemplate.Execute(w, data)
@@ -125,17 +130,17 @@ func (s *ServerStruct) Download(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if fileInfo.IsDir() {
-		s.DownloadFolder(w, req, absPath)
+		s.DownloadFolder(w, absPath)
 	} else {
 		s.DownloadFile(w, req, absPath)
 	}
 }
 
-func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, req *http.Request, absPath string) {
+func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, absPath string) {
 	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s.zip\"", "test.zip"))
 	zipWriter := zip.NewWriter(w)
 
-	walkerr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
+	walkErr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
 		fmt.Println("zipping file")
 		if info.IsDir() {
 			return nil
@@ -152,12 +157,11 @@ func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, req *http.Request, 
 			log.Println("(most likely download stopped)")
 			log.Println(err)
 		}
-		//files = append(files, zipPath)
 		return nil
 	})
-	if walkerr != nil {
+	if walkErr != nil {
 		log.Println("walk error")
-		log.Println(walkerr)
+		log.Println(walkErr)
 	}
 	err := zipWriter.Close()
 	if err != nil {
@@ -182,7 +186,7 @@ func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *http.Request, ab
 	if err != nil {
 		ftime = time.Time{}
 	} else {
-		ftime = fileStat.ModTime()
+		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
 	}
 
 	w.Header().Set("Content-Disposition:", fmt.Sprintf("attachment; filename=\"%s\"", path.Base(req.URL.Path)))
@@ -192,7 +196,7 @@ func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *http.Request, ab
 }
 
 func NewServer(rootDir string) Server {
-	t, err := template.New("walkHTML").Parse(tpl)
+	t, err := template.New("walkHTML").Parse(walkTemplate)
 	if err != nil {
 		log.Fatal("Failed to parse template")
 	}
