@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -147,6 +148,10 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 			DownloadPath: path.Join("download", requestedFolder, f.Name()),
 		})
 	}
+
+	sort.SliceStable(data.Entries, func(i, j int) bool {
+		return strings.ToUpper(data.Entries[i].Name) < strings.ToUpper(data.Entries[j].Name)
+	})
 
 	err = s.walkTemplate.Execute(w, data)
 	if err != nil {
