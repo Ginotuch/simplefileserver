@@ -46,8 +46,6 @@ type Server interface {
 	Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest)
 	Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest)
 	Download(w http.ResponseWriter, req *auth.AuthenticatedRequest)
-	DownloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string)
-	DownloadFolder(w http.ResponseWriter, absPath string)
 }
 
 type ServerStruct struct {
@@ -58,8 +56,12 @@ type ServerStruct struct {
 }
 
 func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
+	s.logger(LogWarning, reqToAuthReq(req), "E404")
 	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "404\n")
+	_, err := fmt.Fprintf(w, "404\n")
+	if err != nil {
+		s.logger(LogError, reqToAuthReq(req), "E404-UnableToWriteResponse")
+	}
 }
 
 func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
@@ -76,7 +78,10 @@ func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
    <body><a href="/walk/">walk</a></body>
 </html>
 `
-	fmt.Fprint(w, homeHTML)
+	_, err := fmt.Fprint(w, homeHTML)
+	if err != nil {
+		s.logger(LogError, reqToAuthReq(req), "Home-UnableToWriteResponse")
+	}
 }
 
 type entry struct {
@@ -107,31 +112,7 @@ func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedReq
 		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
 	}
 
-	r := http.Request{
-		Method:           req.Method,
-		URL:              req.URL,
-		Proto:            req.Proto,
-		ProtoMajor:       req.ProtoMajor,
-		ProtoMinor:       req.ProtoMinor,
-		Header:           req.Header,
-		Body:             req.Body,
-		GetBody:          req.GetBody,
-		ContentLength:    req.ContentLength,
-		TransferEncoding: req.TransferEncoding,
-		Close:            req.Close,
-		Host:             req.Host,
-		Form:             req.Form,
-		PostForm:         req.PostForm,
-		MultipartForm:    req.MultipartForm,
-		Trailer:          req.Trailer,
-		RemoteAddr:       req.RemoteAddr,
-		RequestURI:       req.RequestURI,
-		TLS:              req.TLS,
-		Cancel:           req.Cancel,
-		Response:         req.Response,
-	}
-
-	http.ServeContent(w, &r, "favicon.ico", ftime, file)
+	http.ServeContent(w, authReqToReq(req), "favicon.ico", ftime, file)
 }
 
 func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
