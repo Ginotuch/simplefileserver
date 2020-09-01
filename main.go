@@ -22,7 +22,7 @@ func main() {
 
 	fmt.Printf("registered root dir \"%s\"\n", rootDir)
 
-	newServer := backend.NewServer(rootDir)
+	newServer := backend.NewServer(rootDir, backend.LogDebug)
 
 	authenticator := auth.NewBasicAuthenticator("example.com", Secret)
 

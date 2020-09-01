@@ -51,13 +51,15 @@ type Server interface {
 }
 
 type ServerStruct struct {
+	logFile      *os.File
+	logLevel     int
 	rootDir      string
 	walkTemplate *template.Template
 }
 
 func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "my404\n")
+	fmt.Fprintf(w, "404\n")
 }
 
 func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
@@ -92,7 +94,7 @@ func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedReq
 	w.Header().Set("Content-Type", "image/x-icon")
 	file, err := os.Open("favicon.ico")
 	if err != nil {
-		log.Println("Can't open favicon.ico")
+		s.logger(LogWarning, req, "Favicon")
 		return
 	}
 
@@ -133,15 +135,17 @@ func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedReq
 }
 
 func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+	s.logger(LogInfo, req, "Walk")
 	requestedFolder := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.rootDir, requestedFolder)
 
 	fileInfo, err := os.Stat(absPath)
 	if unix.Access(absPath, unix.R_OK) != nil || err != nil || !fileInfo.IsDir() {
+		s.logger(LogWarning, req, "PathAccessDenied")
 		w.WriteHeader(http.StatusNotFound)
 		_, err = fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
 		if err != nil {
-			log.Fatal("Unable to write response")
+			s.logger(LogError, req, "UnableToWriteResponse")
 		}
 		return
 	}
@@ -167,20 +171,22 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 
 	err = s.walkTemplate.Execute(w, data)
 	if err != nil {
-		log.Fatal("Unable to write response")
+		s.logger(LogError, req, "Walk-UnableToWriteResponse")
 	}
 }
 
 func (s *ServerStruct) Download(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+	s.logger(LogInfo, req, "Download")
 	requestedThing := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.rootDir, requestedThing)
 
 	fileInfo, err := os.Stat(absPath)
 	if unix.Access(absPath, unix.R_OK) != nil || err != nil {
+		s.logger(LogWarning, req, "PathAccessDenied")
 		w.WriteHeader(http.StatusNotFound)
 		_, err = fmt.Fprintf(w, "Either the requested item doesn't exist or access was denied")
 		if err != nil {
-			log.Fatal("Unable to write response")
+			s.logger(LogError, req, "Download-UnableToWriteResponse")
 		}
 		return
 	}
@@ -197,11 +203,11 @@ func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, absPath string) {
 	zipWriter := zip.NewWriter(w)
 
 	walkErr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
-		fmt.Println("zipping file")
 		if info.IsDir() {
 			return nil
 		}
 		zipPath := path.Join(strings.Split(filePath, "/")[len(strings.Split(absPath, "/")):]...)
+		fmt.Printf("[%s][Zipping] folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
 		fileWriter, err := zipWriter.CreateHeader(&zip.FileHeader{Name: zipPath, Method: zip.Store})
 		if err != nil {
 			log.Println("couldn't make file in zip")
@@ -272,12 +278,44 @@ func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *auth.Authenticat
 	_ = file.Close()
 }
 
-func NewServer(rootDir string) Server {
+const (
+	LogDebug   = 0
+	LogInfo    = 1
+	LogWarning = 2
+	LogError   = 3
+)
+
+var LogNames = [4]string{"DEBUG", "INFO", "WARNING", "ERROR"}
+
+func (s *ServerStruct) logger(level int, req *auth.AuthenticatedRequest, caller string) {
+	if level >= s.logLevel {
+		logString := fmt.Sprintf("[%s][%s][%s][%s] user:\"%s\" URL:\"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), LogNames[level], caller, req.RemoteAddr, req.Username, req.URL.Path)
+		fmt.Print(logString)
+		_, err := s.logFile.WriteString(logString)
+		if err != nil {
+			log.Fatal("Unable to write to log file")
+		}
+		err = s.logFile.Sync()
+		if err != nil {
+			log.Fatal("Unable to write to log file")
+		}
+	}
+}
+
+func NewServer(rootDir string, logLevel int) Server {
 	t, err := template.New("walkHTML").Parse(walkTemplate)
 	if err != nil {
 		log.Fatal("Failed to parse template")
 	}
-	newServer := &ServerStruct{rootDir: rootDir, walkTemplate: t}
+	logFile, err := os.OpenFile("logs.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = logFile.WriteString(fmt.Sprintf("=====New Server created on %s=====\n", time.Now().Format("2006-01-02 15:04:05")))
+	if err != nil {
+		log.Fatal("Unable to write to log file")
+	}
+	newServer := &ServerStruct{logFile: logFile, logLevel: logLevel, rootDir: rootDir, walkTemplate: t}
 
 	return newServer
 }
