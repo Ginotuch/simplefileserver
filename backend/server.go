@@ -1,16 +1,13 @@
 package backend
 
 import (
-	"archive/zip"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -39,6 +36,16 @@ const walkTemplate = `
 		</ul>
 	</body>
 </html>`
+
+const homeHTML = `
+<html>
+   <head>
+      <style>body{width:9px;height:9px;position:absolute;top:0;bottom:0;left:0;right:0;margin:auto;}</style>
+      <title>hey</title>
+   </head>
+   <body><a href="/walk/">walk</a></body>
+</html>
+`
 
 type Server interface {
 	E404(w http.ResponseWriter, req *http.Request)
@@ -69,30 +76,10 @@ func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
 		s.E404(w, req)
 		return
 	}
-	homeHTML := `
-<html>
-   <head>
-      <style>body{width:9px;height:9px;position:absolute;top:0;bottom:0;left:0;right:0;margin:auto;}</style>
-      <title>hey</title>
-   </head>
-   <body><a href="/walk/">walk</a></body>
-</html>
-`
 	_, err := fmt.Fprint(w, homeHTML)
 	if err != nil {
 		s.logger(LogError, reqToAuthReq(req), "Home-UnableToWriteResponse")
 	}
-}
-
-type entry struct {
-	Name         string
-	File         bool
-	DownloadPath string
-}
-
-type walkData struct {
-	Path    string
-	Entries []entry
 }
 
 func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
@@ -113,6 +100,17 @@ func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedReq
 	}
 
 	http.ServeContent(w, authReqToReq(req), "favicon.ico", ftime, file)
+}
+
+type entry struct {
+	Name         string
+	File         bool
+	DownloadPath string
+}
+
+type walkData struct {
+	Path    string
+	Entries []entry
 }
 
 func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
@@ -173,113 +171,9 @@ func (s *ServerStruct) Download(w http.ResponseWriter, req *auth.AuthenticatedRe
 	}
 
 	if fileInfo.IsDir() {
-		s.DownloadFolder(w, absPath)
+		s.downloadFolder(w, absPath)
 	} else {
-		s.DownloadFile(w, req, absPath)
-	}
-}
-
-func (s *ServerStruct) DownloadFolder(w http.ResponseWriter, absPath string) {
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", path.Base(absPath)))
-	zipWriter := zip.NewWriter(w)
-
-	walkErr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-		zipPath := path.Join(strings.Split(filePath, "/")[len(strings.Split(absPath, "/")):]...)
-		fmt.Printf("[%s][Zipping] folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
-		fileWriter, err := zipWriter.CreateHeader(&zip.FileHeader{Name: zipPath, Method: zip.Store})
-		if err != nil {
-			log.Println("couldn't make file in zip")
-			log.Println(err)
-		}
-		fileReader, err := os.Open(filePath)
-		_, err = io.Copy(fileWriter, fileReader)
-		if err != nil {
-			log.Println("(most likely download stopped)")
-			log.Println(err)
-		}
-		return nil
-	})
-	if walkErr != nil {
-		log.Println("walk error")
-		log.Println(walkErr)
-	}
-	err := zipWriter.Close()
-	if err != nil {
-		log.Println("failed to close zip file")
-		log.Println(err)
-	}
-}
-
-func (s *ServerStruct) DownloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
-	file, err := os.Open(absPath)
-	if err != nil {
-		_, err = fmt.Fprintf(w, "Unable to get file")
-		if err != nil {
-			log.Fatal("Unable to write response")
-		}
-		return
-	}
-
-	var ftime time.Time
-	fileStat, err := os.Stat(absPath)
-
-	if err != nil {
-		ftime = time.Time{}
-	} else {
-		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
-	}
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", path.Base(req.URL.Path)))
-	r := http.Request{
-		Method:           req.Method,
-		URL:              req.URL,
-		Proto:            req.Proto,
-		ProtoMajor:       req.ProtoMajor,
-		ProtoMinor:       req.ProtoMinor,
-		Header:           req.Header,
-		Body:             req.Body,
-		GetBody:          req.GetBody,
-		ContentLength:    req.ContentLength,
-		TransferEncoding: req.TransferEncoding,
-		Close:            req.Close,
-		Host:             req.Host,
-		Form:             req.Form,
-		PostForm:         req.PostForm,
-		MultipartForm:    req.MultipartForm,
-		Trailer:          req.Trailer,
-		RemoteAddr:       req.RemoteAddr,
-		RequestURI:       req.RequestURI,
-		TLS:              req.TLS,
-		Cancel:           req.Cancel,
-		Response:         req.Response,
-	}
-	http.ServeContent(w, &r, path.Base(req.URL.Path), ftime, file)
-	_ = file.Close()
-}
-
-const (
-	LogDebug   = 0
-	LogInfo    = 1
-	LogWarning = 2
-	LogError   = 3
-)
-
-var LogNames = [4]string{"DEBUG", "INFO", "WARNING", "ERROR"}
-
-func (s *ServerStruct) logger(level int, req *auth.AuthenticatedRequest, caller string) {
-	if level >= s.logLevel {
-		logString := fmt.Sprintf("[%s][%s][%s][%s] user:\"%s\" URL:\"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), LogNames[level], caller, req.RemoteAddr, req.Username, req.URL.Path)
-		fmt.Print(logString)
-		_, err := s.logFile.WriteString(logString)
-		if err != nil {
-			log.Fatal("Unable to write to log file")
-		}
-		err = s.logFile.Sync()
-		if err != nil {
-			log.Fatal("Unable to write to log file")
-		}
+		s.downloadFile(w, req, absPath)
 	}
 }
 
