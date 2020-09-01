@@ -120,3 +120,6 @@ venv.bak/
 *.csr
 *.key
 
+# htdigest
+.htdigest
+

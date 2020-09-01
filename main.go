@@ -10,10 +10,6 @@ import (
 	auth "github.com/abbot/go-http-auth"
 )
 
-func Secret(user, realm string) string {
-	return "change me ;)"
-}
-
 func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("Requires single argument of root dir\n $ main.go /path/to/dir")
@@ -24,7 +20,7 @@ func main() {
 
 	newServer := backend.NewServer(rootDir, backend.LogDebug)
 
-	authenticator := auth.NewBasicAuthenticator("example.com", Secret)
+	authenticator := auth.NewBasicAuthenticator("example.com", auth.HtdigestFileProvider(".htdigest"))
 
 	mux := http.NewServeMux()
 
