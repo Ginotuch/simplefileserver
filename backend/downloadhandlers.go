@@ -27,7 +27,7 @@ func (s *ServerStruct) downloadFolder(w http.ResponseWriter, absPath string) {
 		fmt.Printf("[%s][Zipping] folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
 		fileWriter, err := zipWriter.CreateHeader(&zip.FileHeader{Name: zipPath, Method: zip.Store})
 		if err != nil {
-			log.Println("couldn't make file in zip")
+			fmt.Printf("[%s][ERROR][Zipping] FAILED folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
 			log.Println(err)
 		}
 		fileReader, err := os.Open(filePath)
