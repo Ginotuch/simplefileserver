@@ -57,9 +57,10 @@ func (s *ServerStruct) downloadFolder(w http.ResponseWriter, absPath string) {
 func (s *ServerStruct) downloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
 	file, err := os.Open(absPath)
 	if err != nil {
+		s.logger(LogWarning, req, "downloadFile")
 		_, err = fmt.Fprintf(w, "Unable to get file")
 		if err != nil {
-			log.Fatal("Unable to write response")
+			s.logger(LogError, req, "UnableToWriteResponse")
 		}
 		return
 	}
