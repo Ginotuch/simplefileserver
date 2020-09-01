@@ -125,8 +125,6 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	requestedFolder += "/"
 	absPath += "/"
 
@@ -135,7 +133,18 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 		Entries: []entry{},
 	}
 
-	files, err := ioutil.ReadDir(absPath) // todo: race condition with above unix.Access check (folder permission removal)
+	files, err := ioutil.ReadDir(absPath)
+	if err != nil {
+		s.logger(LogError, req, "Walk-readDir")
+		log.Println(err)
+
+		w.WriteHeader(http.StatusNotFound)
+		_, err = fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
+		if err != nil {
+			s.logger(LogError, req, "UnableToWriteResponse")
+		}
+		return
+	}
 	for _, f := range files {
 		data.Entries = append(data.Entries, entry{
 			Name:         f.Name(),
@@ -148,6 +157,7 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 		return strings.ToUpper(data.Entries[i].Name) < strings.ToUpper(data.Entries[j].Name)
 	})
 
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err = s.walkTemplate.Execute(w, data)
 	if err != nil {
 		s.logger(LogError, req, "Walk-UnableToWriteResponse")
