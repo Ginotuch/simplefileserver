@@ -68,29 +68,7 @@ func (s *ServerStruct) downloadFile(w http.ResponseWriter, req *auth.Authenticat
 		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
 	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", path.Base(req.URL.Path)))
-	r := http.Request{
-		Method:           req.Method,
-		URL:              req.URL,
-		Proto:            req.Proto,
-		ProtoMajor:       req.ProtoMajor,
-		ProtoMinor:       req.ProtoMinor,
-		Header:           req.Header,
-		Body:             req.Body,
-		GetBody:          req.GetBody,
-		ContentLength:    req.ContentLength,
-		TransferEncoding: req.TransferEncoding,
-		Close:            req.Close,
-		Host:             req.Host,
-		Form:             req.Form,
-		PostForm:         req.PostForm,
-		MultipartForm:    req.MultipartForm,
-		Trailer:          req.Trailer,
-		RemoteAddr:       req.RemoteAddr,
-		RequestURI:       req.RequestURI,
-		TLS:              req.TLS,
-		Cancel:           req.Cancel,
-		Response:         req.Response,
-	}
-	http.ServeContent(w, &r, path.Base(req.URL.Path), ftime, file)
+
+	http.ServeContent(w, authReqToReq(req), path.Base(req.URL.Path), ftime, file)
 	_ = file.Close()
 }
