@@ -23,7 +23,7 @@ func (s *ServerStruct) downloadFolder(w http.ResponseWriter, absPath string) {
 		if info.IsDir() {
 			return nil
 		}
-		zipPath := path.Join(strings.Split(filePath, "/")[len(strings.Split(absPath, "/")):]...)
+		zipPath := path.Join(strings.Split(filePath, "/")[len(strings.Split(absPath, "/"))-1:]...)
 		fmt.Printf("[%s][Zipping] folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
 		fileWriter, err := zipWriter.CreateHeader(&zip.FileHeader{Name: zipPath, Method: zip.Store})
 		if err != nil {
