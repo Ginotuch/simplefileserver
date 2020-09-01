@@ -76,6 +76,7 @@ func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
+	s.logger(LogInfo, reqToAuthReq(req), "Home")
 	if req.URL.Path != "/" {
 		s.E404(w, req)
 		return
@@ -87,10 +88,11 @@ func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+	s.logger(LogInfo, req, "Favicon")
 	w.Header().Set("Content-Type", "image/x-icon")
 	file, err := os.Open("favicon.ico")
 	if err != nil {
-		s.logger(LogWarning, req, "Favicon")
+		s.logger(LogWarning, req, "FaviconMissing")
 		return
 	}
 
