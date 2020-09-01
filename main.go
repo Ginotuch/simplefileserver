@@ -1,26 +1,27 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/Ginotuch/simplefileserver/backend"
 	auth "github.com/abbot/go-http-auth"
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		log.Fatal("Requires single argument of root dir\n $ main.go /path/to/dir")
-	}
-	rootDir := os.Args[1]
+	rootDir := flag.String("root", "./temp", "The root directory for the hosted files.")
+	port := flag.String("port", "8090", "Port number to listen on.")
+	cert := flag.String("cert", "./localhost.crt", "Cert file for TLS")
+	key := flag.String("key", "./localhost.key", "Key file for TLS")
+	flag.Parse()
 
-	fmt.Printf("registered root dir \"%s\"\n", rootDir)
+	fmt.Printf("registered root dir \"%s\"\n", *rootDir)
 
-	newServer := backend.NewServer(rootDir, backend.LogDebug)
+	newServer := backend.NewServer(*rootDir, backend.LogDebug)
 
-	authenticator := auth.NewBasicAuthenticator("example.com", auth.HtdigestFileProvider(".htdigest"))
+	authenticator := auth.NewBasicAuthenticator("simplefileserver", auth.HtdigestFileProvider(".htdigest"))
 
 	mux := http.NewServeMux()
 
@@ -29,5 +30,5 @@ func main() {
 	mux.HandleFunc("/favicon.ico", authenticator.Wrap(newServer.Favicon))
 	mux.HandleFunc("/", newServer.Home)
 
-	log.Fatal(http.ListenAndServeTLS(":8090", "localhost.crt", "localhost.key", mux))
+	log.Fatal(http.ListenAndServeTLS(":"+*port, *cert, *key, mux))
 }
