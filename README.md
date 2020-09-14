@@ -2,6 +2,8 @@
 A very simple file server written in Go for file and folder downloading through a browser.
 Folders will be streamed to the browser as an uncompressed .zip file (requires no extra server hard drive space).
 
+Has temporary (48 hour) links to downloads.
+
 ## Usage
 ```
 $ go build main.go
@@ -20,4 +22,3 @@ $ openssl  x509  -req  -days 365  -in localhost.csr  -signkey localhost.key  -ou
 
 ## Todo
 * Do actual web design.
-* Generate temporary share links (no login required).
