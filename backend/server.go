@@ -14,6 +14,7 @@ import (
 
 	auth "github.com/abbot/go-http-auth"
 
+	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 )
 
@@ -29,11 +30,14 @@ const walkTemplate = `
 		<ul>
 			<li><a href = "../">../</a></li>
 			{{range .Entries}}
+				<li>
 				{{if .File}}
-					<li><a href="/{{.DownloadPath}}">{{.Name}}</a></li>
+					<a href="/{{.DownloadPath}}">{{.Name}}</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 				{{else}}
-					<li><a href="{{.Name}}/">{{.Name}}/</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="/{{.DownloadPath}}">zip download</a></li>
+					<a href="{{.Name}}/">{{.Name}}/</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="/{{.DownloadPath}}">zip download</a>&nbsp;&nbsp;
 				{{end}}
+				<a href="/{{.GenTempLink}}">temp link</a></li>
+				</li>
 			{{end}}
 		</ul>
 	</body>
@@ -47,6 +51,8 @@ type Server interface {
 	Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest)
 	Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest)
 	Download(w http.ResponseWriter, req *auth.AuthenticatedRequest)
+	GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedRequest)
+	TempHandler(w http.ResponseWriter, req *http.Request)
 }
 
 type ServerStruct struct {
@@ -54,6 +60,7 @@ type ServerStruct struct {
 	logLevel     int
 	rootDir      string
 	walkTemplate *template.Template
+	tempLinks    map[string]tempLink
 }
 
 func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
@@ -102,11 +109,17 @@ type entry struct {
 	Name         string
 	File         bool
 	DownloadPath string
+	GenTempLink  string
 }
 
 type walkData struct {
 	Path    string
 	Entries []entry
+}
+
+type tempLink struct {
+	Path      string
+	timeStamp int64
 }
 
 func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
@@ -150,6 +163,7 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 			Name:         f.Name(),
 			File:         !f.IsDir(),
 			DownloadPath: path.Join("download", requestedFolder, f.Name()),
+			GenTempLink:  path.Join("gettemplink", requestedFolder, f.Name()),
 		})
 	}
 
@@ -164,22 +178,72 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 	}
 }
 
-func (s *ServerStruct) Download(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
-	s.logger(LogInfo, req, "Download")
+func (s *ServerStruct) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+	s.logger(LogInfo, req, "GetTempLink")
+
+	for k, v := range s.tempLinks {
+		if v.timeStamp < time.Now().Unix() {
+			delete(s.tempLinks, k)
+		}
+	}
+	_, _, err := s.checkThing(w, req)
+	if err != nil {
+		return
+	}
+	fileUUID := uuid.New().String()
+	timeStamp := time.Now().Unix() + 60*60*48 // adds 48 hours to the link
+	s.tempLinks[fileUUID] = tempLink{
+		Path:      path.Join(strings.Split(req.URL.Path, "/")[2:]...),
+		timeStamp: timeStamp,
+	}
+	_, err = fmt.Fprintf(w, "Temporary link: https://%s\nOnly valid for 48 hours", path.Join(req.Host, "temp", fileUUID))
+	if err != nil {
+		s.logger(LogError, req, "GetTempLink-UnableToWriteResponse")
+	}
+}
+
+func (s *ServerStruct) TempHandler(w http.ResponseWriter, req *http.Request) {
+	s.logger(LogInfo, reqToAuthReq(req), "tempHandler")
+	requestedUUID := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
+	linkInfo, ok := s.tempLinks[requestedUUID]
+	if !ok || linkInfo.timeStamp < time.Now().Unix() {
+		s.E404(w, req)
+		return
+	}
+	go func(templinks *map[string]tempLink) { // remove out of date links
+		for k, v := range *templinks {
+			if v.timeStamp < time.Now().Unix() {
+				delete(*templinks, k)
+			}
+		}
+	}(&s.tempLinks)
+	req.URL.Path = "/temp/" + linkInfo.Path
+	s.Download(w, reqToAuthReq(req))
+}
+
+func (s *ServerStruct) checkThing(w http.ResponseWriter, req *auth.AuthenticatedRequest) (string, os.FileInfo, error) {
 	requestedThing := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.rootDir, requestedThing)
 
-	fileInfo, err := os.Stat(absPath)
-	if unix.Access(absPath, unix.R_OK) != nil || err != nil {
+	fileInfo, statErr := os.Stat(absPath)
+	if unix.Access(absPath, unix.R_OK) != nil || statErr != nil {
 		s.logger(LogWarning, req, "PathAccessDenied")
 		w.WriteHeader(http.StatusNotFound)
-		_, err = fmt.Fprintf(w, "Either the requested item doesn't exist or access was denied")
-		if err != nil {
-			s.logger(LogError, req, "Download-UnableToWriteResponse")
+		_, respErr := fmt.Fprintf(w, "Either the requested item doesn't exist or access was denied")
+		if respErr != nil {
+			s.logger(LogError, req, "checkThing-UnableToWriteResponse")
 		}
+		return absPath, nil, statErr
+	}
+	return absPath, fileInfo, nil
+}
+
+func (s *ServerStruct) Download(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+	s.logger(LogInfo, req, "Download")
+	absPath, fileInfo, err := s.checkThing(w, req)
+	if err != nil {
 		return
 	}
-
 	if fileInfo.IsDir() {
 		s.downloadFolder(w, absPath)
 	} else {
@@ -200,7 +264,7 @@ func NewServer(rootDir string, logLevel int) Server {
 	if err != nil {
 		log.Fatal("Unable to write to log file")
 	}
-	newServer := &ServerStruct{logFile: logFile, logLevel: logLevel, rootDir: rootDir, walkTemplate: t}
+	newServer := &ServerStruct{logFile: logFile, logLevel: logLevel, rootDir: rootDir, walkTemplate: t, tempLinks: make(map[string]tempLink)}
 
 	return newServer
 }

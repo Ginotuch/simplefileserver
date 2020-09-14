@@ -26,6 +26,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/download/", authenticator.Wrap(newServer.Download))
+	mux.HandleFunc("/gettemplink/", authenticator.Wrap(newServer.GetTempLink))
+	mux.HandleFunc("/temp/", newServer.TempHandler)
 	mux.HandleFunc("/walk/", authenticator.Wrap(newServer.Walk))
 	mux.HandleFunc("/favicon.ico", authenticator.Wrap(newServer.Favicon))
 	mux.HandleFunc("/", newServer.Home)
