@@ -10,6 +10,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	auth "github.com/abbot/go-http-auth"
@@ -56,11 +57,12 @@ type Server interface {
 }
 
 type ServerStruct struct {
-	logFile      *os.File
-	logLevel     int
-	rootDir      string
-	walkTemplate *template.Template
-	tempLinks    map[string]tempLink
+	logFile       *os.File
+	logLevel      int
+	rootDir       string
+	walkTemplate  *template.Template
+	tempLinks     map[string]tempLink
+	tempLinksLock sync.Mutex
 }
 
 func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
@@ -180,45 +182,49 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 
 func (s *ServerStruct) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	s.logger(LogInfo, req, "GetTempLink")
-
-	for k, v := range s.tempLinks {
-		if v.timeStamp < time.Now().Unix() {
-			delete(s.tempLinks, k)
-		}
-	}
 	_, _, err := s.checkThing(w, req)
 	if err != nil {
 		return
 	}
 	fileUUID := uuid.New().String()
 	timeStamp := time.Now().Unix() + 60*60*48 // adds 48 hours to the link
+	filePath := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
+	s.tempLinksLock.Lock()
 	s.tempLinks[fileUUID] = tempLink{
-		Path:      path.Join(strings.Split(req.URL.Path, "/")[2:]...),
+		Path:      filePath,
 		timeStamp: timeStamp,
 	}
-	_, err = fmt.Fprintf(w, "Temporary link: https://%s\nOnly valid for 48 hours", path.Join(req.Host, "temp", fileUUID))
+	s.tempLinksLock.Unlock()
+	_, err = fmt.Fprintf(w, "File: %s\nTemporary link: https://%s\n\n\nOnly valid for 48 hours", filePath, path.Join(req.Host, "temp", fileUUID))
 	if err != nil {
 		s.logger(LogError, req, "GetTempLink-UnableToWriteResponse")
 	}
+	go s.linkClean()
 }
 
 func (s *ServerStruct) TempHandler(w http.ResponseWriter, req *http.Request) {
 	s.logger(LogInfo, reqToAuthReq(req), "tempHandler")
 	requestedUUID := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
+	s.tempLinksLock.Lock()
+	defer s.tempLinksLock.Unlock()
 	linkInfo, ok := s.tempLinks[requestedUUID]
 	if !ok || linkInfo.timeStamp < time.Now().Unix() {
 		s.E404(w, req)
 		return
 	}
-	go func(templinks *map[string]tempLink) { // remove out of date links
-		for k, v := range *templinks {
-			if v.timeStamp < time.Now().Unix() {
-				delete(*templinks, k)
-			}
-		}
-	}(&s.tempLinks)
 	req.URL.Path = "/temp/" + linkInfo.Path
 	s.Download(w, reqToAuthReq(req))
+	go s.linkClean()
+}
+
+func (s *ServerStruct) linkClean() { // remove out of date links
+	s.tempLinksLock.Lock()
+	for k, v := range s.tempLinks {
+		if v.timeStamp < time.Now().Unix() {
+			delete(s.tempLinks, k)
+		}
+	}
+	s.tempLinksLock.Unlock()
 }
 
 func (s *ServerStruct) checkThing(w http.ResponseWriter, req *auth.AuthenticatedRequest) (string, os.FileInfo, error) {
