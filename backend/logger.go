@@ -17,7 +17,7 @@ const (
 
 var LogNames = [4]string{"DEBUG", "INFO", "WARNING", "ERROR"}
 
-func (s *ServerStruct) logger(level int, req *auth.AuthenticatedRequest, caller string) {
+func (s *Server) logger(level int, req *auth.AuthenticatedRequest, caller string) {
 	if level >= s.logLevel {
 		logString := fmt.Sprintf("[%s][%s][%s][%s] user:\"%s\" URL:\"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), LogNames[level], caller, req.RemoteAddr, req.Username, req.URL.Path)
 		fmt.Print(logString)

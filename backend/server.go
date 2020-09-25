@@ -46,17 +46,7 @@ const walkTemplate = `
 
 const homeHTML = `<!doctype html><link id=favicon rel="shortcut icon" type=image/png href=data:image/png;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAXl1cAP///wArKysAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMhEREREREREyAAAAAAAAATIAAAAAAAABMgAAAAAAAAEyACAAAiIgATIAIAAAACABMgAgAAAAIAEyACIiAiIgATIAIAACAAABMgAgAAIAAAEyACIiAiIgATIAAAAAAAABMgAAAAAAAAEyAAAAAAAAATIiIiIiIiIiMzMzMzMzMzMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA><style>body{width:9px;height:9px;position:absolute;top:0;bottom:0;left:0;right:0;margin:auto}</style><title>&#65279;</title><a href=/walk/>walk</a>`
 
-type Server interface {
-	E404(w http.ResponseWriter, req *http.Request)
-	Home(w http.ResponseWriter, req *http.Request)
-	Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest)
-	Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest)
-	Download(w http.ResponseWriter, req *auth.AuthenticatedRequest)
-	GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedRequest)
-	TempHandler(w http.ResponseWriter, req *http.Request)
-}
-
-type ServerStruct struct {
+type Server struct {
 	logFile       *os.File
 	logLevel      int
 	rootDir       string
@@ -65,7 +55,7 @@ type ServerStruct struct {
 	tempLinksLock sync.Mutex
 }
 
-func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
+func (s *Server) E404(w http.ResponseWriter, req *http.Request) {
 	s.logger(LogWarning, reqToAuthReq(req), "E404")
 	w.WriteHeader(http.StatusNotFound)
 	_, err := fmt.Fprintf(w, "404\n")
@@ -74,7 +64,7 @@ func (s *ServerStruct) E404(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
+func (s *Server) Home(w http.ResponseWriter, req *http.Request) {
 	s.logger(LogInfo, reqToAuthReq(req), "Home")
 	if req.URL.Path != "/" {
 		s.E404(w, req)
@@ -86,7 +76,7 @@ func (s *ServerStruct) Home(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (s *ServerStruct) Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+func (s *Server) Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	s.logger(LogInfo, req, "Favicon")
 	w.Header().Set("Content-Type", "image/x-icon")
 	file, err := os.Open("favicon.ico")
@@ -124,7 +114,7 @@ type tempLink struct {
 	timeStamp int64
 }
 
-func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+func (s *Server) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	s.logger(LogInfo, req, "Walk")
 	requestedFolder := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.rootDir, requestedFolder)
@@ -180,7 +170,7 @@ func (s *ServerStruct) Walk(w http.ResponseWriter, req *auth.AuthenticatedReques
 	}
 }
 
-func (s *ServerStruct) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+func (s *Server) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	s.logger(LogInfo, req, "GetTempLink")
 	_, _, err := s.checkThing(w, req)
 	if err != nil {
@@ -202,7 +192,7 @@ func (s *ServerStruct) GetTempLink(w http.ResponseWriter, req *auth.Authenticate
 	go s.linkClean()
 }
 
-func (s *ServerStruct) TempHandler(w http.ResponseWriter, req *http.Request) {
+func (s *Server) TempHandler(w http.ResponseWriter, req *http.Request) {
 	s.logger(LogInfo, reqToAuthReq(req), "tempHandler")
 	requestedUUID := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	s.tempLinksLock.Lock()
@@ -217,7 +207,7 @@ func (s *ServerStruct) TempHandler(w http.ResponseWriter, req *http.Request) {
 	go s.linkClean()
 }
 
-func (s *ServerStruct) linkClean() { // remove out of date links
+func (s *Server) linkClean() { // remove out of date links
 	s.tempLinksLock.Lock()
 	for k, v := range s.tempLinks {
 		if v.timeStamp < time.Now().Unix() {
@@ -227,7 +217,7 @@ func (s *ServerStruct) linkClean() { // remove out of date links
 	s.tempLinksLock.Unlock()
 }
 
-func (s *ServerStruct) checkThing(w http.ResponseWriter, req *auth.AuthenticatedRequest) (string, os.FileInfo, error) {
+func (s *Server) checkThing(w http.ResponseWriter, req *auth.AuthenticatedRequest) (string, os.FileInfo, error) {
 	requestedThing := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	absPath := path.Join(s.rootDir, requestedThing)
 
@@ -244,7 +234,7 @@ func (s *ServerStruct) checkThing(w http.ResponseWriter, req *auth.Authenticated
 	return absPath, fileInfo, nil
 }
 
-func (s *ServerStruct) Download(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
+func (s *Server) Download(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	s.logger(LogInfo, req, "Download")
 	absPath, fileInfo, err := s.checkThing(w, req)
 	if err != nil {
@@ -257,7 +247,7 @@ func (s *ServerStruct) Download(w http.ResponseWriter, req *auth.AuthenticatedRe
 	}
 }
 
-func NewServer(rootDir string, logLevel int) Server {
+func NewServer(rootDir string, logLevel int) *Server {
 	t, err := template.New("walkHTML").Parse(walkTemplate)
 	if err != nil {
 		log.Fatal("Failed to parse template")
@@ -270,7 +260,7 @@ func NewServer(rootDir string, logLevel int) Server {
 	if err != nil {
 		log.Fatal("Unable to write to log file")
 	}
-	newServer := &ServerStruct{logFile: logFile, logLevel: logLevel, rootDir: rootDir, walkTemplate: t, tempLinks: make(map[string]tempLink)}
+	newServer := &Server{logFile: logFile, logLevel: logLevel, rootDir: rootDir, walkTemplate: t, tempLinks: make(map[string]tempLink)}
 
 	return newServer
 }

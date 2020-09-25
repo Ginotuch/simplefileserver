@@ -15,7 +15,7 @@ import (
 	auth "github.com/abbot/go-http-auth"
 )
 
-func (s *ServerStruct) downloadFolder(w http.ResponseWriter, absPath string) {
+func (s *Server) downloadFolder(w http.ResponseWriter, absPath string) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", path.Base(absPath)))
 	zipWriter := zip.NewWriter(w)
 
@@ -54,7 +54,7 @@ func (s *ServerStruct) downloadFolder(w http.ResponseWriter, absPath string) {
 	}
 }
 
-func (s *ServerStruct) downloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
+func (s *Server) downloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
 	file, err := os.Open(absPath)
 	if err != nil {
 		s.logger(LogWarning, req, "downloadFile")
