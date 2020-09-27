@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -24,43 +23,38 @@ func (s *Server) downloadFolder(w http.ResponseWriter, absPath string) {
 			return nil
 		}
 		zipPath := path.Join(strings.Split(filePath, "/")[len(strings.Split(absPath, "/"))-1:]...)
-		fmt.Printf("[%s][Zipping] folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
+		s.logger.Debugw("Zipping file to folder", "folder", absPath, "file", zipPath)
 		fileWriter, err := zipWriter.CreateHeader(&zip.FileHeader{Name: zipPath, Method: zip.Store})
 		if err != nil {
-			fmt.Printf("[%s][ERROR][Zipping] FAILED folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
-			log.Println(err)
+			s.logger.Errorw("Zipping file to folder failed", "folder", absPath, "file", zipPath, "error", err)
 		}
 		fileReader, err := os.Open(filePath)
 		_, err = io.Copy(fileWriter, fileReader)
 		if err != nil {
-			log.Println("(most likely download stopped)")
-			log.Println(err)
+			s.logger.Errorw("Zip write failed (most likely download stopped by user)", "folder", absPath, "file", zipPath, "error", err)
 		}
 		err = fileReader.Close()
 		if err != nil {
-			fmt.Printf("[%s][ERROR][Zipping] CloseFileFailed folder: \"%s\" file: \"%s\"\n", time.Now().Format("2006-01-02 15:04:05"), absPath, zipPath)
-			log.Println(err)
+			s.logger.Errorw("Closing file being added to zip failed", "folder", absPath, "file", zipPath, "error", err)
 		}
 		return nil
 	})
 	if walkErr != nil {
-		log.Println("walk error")
-		log.Println(walkErr)
+		s.logger.Errorw("Walk error", "folder", absPath, "error", walkErr)
 	}
 	err := zipWriter.Close()
 	if err != nil {
-		log.Println("failed to close zip file")
-		log.Println(err)
+		s.logger.Errorw("Failed to close zip file", "folder", absPath, "error", walkErr)
 	}
 }
 
 func (s *Server) downloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
 	file, err := os.Open(absPath)
 	if err != nil {
-		s.logger(LogWarning, req, "downloadFile")
+		s.logger.Warnw("", "request", reqToJson(authReqToReq(req)), "error", err)
 		_, err = fmt.Fprintf(w, "Unable to get file")
 		if err != nil {
-			s.logger(LogError, req, "UnableToWriteResponse")
+			s.logger.Errorw(logUnableToRespond, "request", reqToJson(authReqToReq(req)))
 		}
 		return
 	}

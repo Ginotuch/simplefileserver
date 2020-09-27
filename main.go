@@ -6,8 +6,9 @@ import (
 	"log"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/Ginotuch/simplefileserver/backend"
-	auth "github.com/abbot/go-http-auth"
 )
 
 func main() {
@@ -18,19 +19,9 @@ func main() {
 	flag.Parse()
 
 	fmt.Printf("registered root dir \"%s\"\n", *rootDir)
+	fmt.Printf("Starting server and listening on port: %s", *port)
 
-	newServer := backend.NewServer(*rootDir, backend.LogDebug)
+	newServer := backend.NewServer(*rootDir, zap.DebugLevel)
 
-	authenticator := auth.NewBasicAuthenticator("simplefileserver", auth.HtdigestFileProvider(".htdigest"))
-
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/download/", authenticator.Wrap(newServer.Download))
-	mux.HandleFunc("/gettemplink/", authenticator.Wrap(newServer.GetTempLink))
-	mux.HandleFunc("/temp/", newServer.TempHandler)
-	mux.HandleFunc("/walk/", authenticator.Wrap(newServer.Walk))
-	mux.HandleFunc("/favicon.ico", authenticator.Wrap(newServer.Favicon))
-	mux.HandleFunc("/", newServer.Home)
-
-	log.Fatal(http.ListenAndServeTLS(":"+*port, *cert, *key, mux))
+	log.Fatal(http.ListenAndServeTLS(":"+*port, *cert, *key, newServer))
 }
