@@ -150,8 +150,8 @@ func (s *Server) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedReque
 func (s *Server) TempHandler(w http.ResponseWriter, req *http.Request) {
 	requestedUUID := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	s.tempLinksLock.Lock()
-	defer s.tempLinksLock.Unlock()
 	linkInfo, ok := s.tempLinks[requestedUUID]
+	s.tempLinksLock.Unlock()
 	if !ok || linkInfo.timeStamp < time.Now().Unix() {
 		s.E404(w, req)
 		return
