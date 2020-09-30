@@ -77,8 +77,8 @@ func (s *Server) closeHandlerSetup() { // silently close without printing on ctr
 
 func NewServer(rootDir string, logLevel zapcore.Level) *Server {
 	cfg := zap.NewProductionConfig()
-	cfg.OutputPaths = append(cfg.OutputPaths, "./testfile")
-	cfg.ErrorOutputPaths = append(cfg.ErrorOutputPaths, "./testfile")
+	cfg.OutputPaths = append(cfg.OutputPaths, "./log.log")
+	cfg.ErrorOutputPaths = append(cfg.ErrorOutputPaths, "./log.log")
 	cfg.Level = zap.NewAtomicLevelAt(logLevel)
 	plain, err := cfg.Build()
 	if err != nil {
