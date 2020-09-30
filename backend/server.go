@@ -4,7 +4,10 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	auth "github.com/abbot/go-http-auth"
 	"go.uber.org/zap/zapcore"
@@ -61,8 +64,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.mux.ServeHTTP(w, req)
 }
 
+func (s *Server) closeHandlerSetup() { // silently close without printing on ctrl+c signal interrupt
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		s.logger.Infow("simplefileserver shutting down")
+		_ = s.logger.Sync()
+		os.Exit(0)
+	}()
+}
+
 func NewServer(rootDir string, logLevel zapcore.Level) *Server {
 	cfg := zap.NewProductionConfig()
+	cfg.OutputPaths = append(cfg.OutputPaths, "./testfile")
+	cfg.ErrorOutputPaths = append(cfg.ErrorOutputPaths, "./testfile")
 	cfg.Level = zap.NewAtomicLevelAt(logLevel)
 	plain, err := cfg.Build()
 	if err != nil {
@@ -87,6 +103,7 @@ func NewServer(rootDir string, logLevel zapcore.Level) *Server {
 	newServer.mux.HandleFunc("/favicon.ico", authenticator.Wrap(newServer.Favicon))
 	newServer.mux.HandleFunc("/", newServer.Home)
 
+	newServer.closeHandlerSetup()
 	logger.Infow("simpleifleserver startup complete")
 	return newServer
 }
