@@ -19,7 +19,7 @@ func main() {
 	flag.Parse()
 
 	fmt.Printf("registered root dir \"%s\"\n", *rootDir)
-	fmt.Printf("Starting server and listening on port: %s", *port)
+	fmt.Printf("Starting server and listening on port: %s\n", *port)
 
 	newServer := backend.NewServer(*rootDir, zap.DebugLevel)
 
