@@ -21,4 +21,8 @@ $ openssl  x509  -req  -days 365  -in localhost.csr  -signkey localhost.key  -ou
 * Only supports Linux (works on WSL).
 
 ## Todo
-* Do actual web design.
+* Do actual web design
+* Switch from http authentication to something better
+* Implement database for login details storage
+* Make temporary links persistent (using database)
+* User uploads, most likely uploading as zip to avoid issues
