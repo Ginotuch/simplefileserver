@@ -56,7 +56,7 @@ type Server struct {
 	rootDir       string
 	walkTemplate  *template.Template
 	tempLinks     map[string]tempLink
-	tempLinksLock sync.Mutex
+	tempLinksLock sync.RWMutex
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
