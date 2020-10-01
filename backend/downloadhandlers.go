@@ -51,10 +51,10 @@ func (s *Server) downloadFolder(w http.ResponseWriter, absPath string) {
 func (s *Server) downloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
 	file, err := os.Open(absPath)
 	if err != nil {
-		s.logger.Warnw("", "request", reqToJson(authReqToReq(req)), "error", err)
+		s.logger.Warnw("", "request", reqToSafeStruct(authReqToReq(req)), "error", err)
 		_, err = fmt.Fprintf(w, "Unable to get file")
 		if err != nil {
-			s.logger.Errorw(logUnableToRespond, "request", reqToJson(authReqToReq(req)))
+			s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(authReqToReq(req)))
 		}
 		return
 	}

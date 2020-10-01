@@ -60,7 +60,7 @@ type Server struct {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	s.logger.Infow("", "request", reqToJson(req))
+	s.logger.Infow("", "request", reqToSafeStruct(req))
 	s.mux.ServeHTTP(w, req)
 }
 

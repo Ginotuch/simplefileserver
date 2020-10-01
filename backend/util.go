@@ -14,7 +14,7 @@ func reqToAuthReq(req *http.Request) *auth.AuthenticatedRequest {
 	return &auth.AuthenticatedRequest{Request: *req}
 }
 
-func reqToJson(req *http.Request) interface{} {
+func reqToSafeStruct(req *http.Request) interface{} { // returns a struct that doesn't break zap
 	return struct {
 		URL        string
 		Host       string

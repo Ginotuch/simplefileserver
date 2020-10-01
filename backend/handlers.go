@@ -15,11 +15,11 @@ import (
 )
 
 func (s *Server) E404(w http.ResponseWriter, req *http.Request) {
-	s.logger.Warnw(log404, "request", reqToJson(req))
+	s.logger.Warnw(log404, "request", reqToSafeStruct(req))
 	w.WriteHeader(http.StatusNotFound)
 	_, err := fmt.Fprintf(w, "404\n")
 	if err != nil {
-		s.logger.Errorw(logUnableToRespond, "request", reqToJson(req))
+		s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(req))
 	}
 }
 
@@ -30,7 +30,7 @@ func (s *Server) Home(w http.ResponseWriter, req *http.Request) {
 	}
 	_, err := fmt.Fprint(w, homeHTML)
 	if err != nil {
-		s.logger.Errorw(logUnableToRespond, "request", reqToJson(req))
+		s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(req))
 	}
 }
 
@@ -38,7 +38,7 @@ func (s *Server) Favicon(w http.ResponseWriter, req *auth.AuthenticatedRequest) 
 	w.Header().Set("Content-Type", "image/x-icon")
 	file, err := os.Open("favicon.ico")
 	if err != nil {
-		s.logger.Warnw("Favicon Missing", "request", reqToJson(authReqToReq(req)))
+		s.logger.Warnw("Favicon Missing", "request", reqToSafeStruct(authReqToReq(req)))
 		return
 	}
 
@@ -88,12 +88,12 @@ func (s *Server) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 
 	files, err := ioutil.ReadDir(absPath)
 	if err != nil {
-		s.logger.Errorw(logUnableToReadDir, "request", reqToJson(authReqToReq(req)), "error", err)
+		s.logger.Errorw(logUnableToReadDir, "request", reqToSafeStruct(authReqToReq(req)), "error", err)
 
 		w.WriteHeader(http.StatusNotFound)
 		_, err = fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
 		if err != nil {
-			s.logger.Errorw(logUnableToRespond, "request", reqToJson(authReqToReq(req)))
+			s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(authReqToReq(req)))
 		}
 		return
 	}
@@ -113,7 +113,7 @@ func (s *Server) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err = s.walkTemplate.Execute(w, data)
 	if err != nil {
-		s.logger.Errorw(logUnableToRespond, "request", reqToJson(authReqToReq(req)))
+		s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(authReqToReq(req)))
 	}
 }
 
@@ -133,7 +133,7 @@ func (s *Server) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedReque
 	s.tempLinksLock.Unlock()
 	_, err = fmt.Fprintf(w, "File: %s\nTemporary link: https://%s\n\n\nOnly valid for 48 hours", filePath, path.Join(req.Host, "temp", fileUUID))
 	if err != nil {
-		s.logger.Errorw(logUnableToRespond, "request", reqToJson(authReqToReq(req)))
+		s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(authReqToReq(req)))
 	}
 	go s.linkClean()
 }
@@ -173,12 +173,12 @@ func (s *Server) checkThing(w http.ResponseWriter, req *auth.AuthenticatedReques
 			_ = fileHandle.Close()
 		}
 		s.logger.Warnw(logPathDenied,
-			"request", reqToJson(authReqToReq(req)), "statErr", statErr, "openErr", openErr)
+			"request", reqToSafeStruct(authReqToReq(req)), "statErr", statErr, "openErr", openErr)
 		w.WriteHeader(http.StatusNotFound)
 		_, respErr := fmt.Fprintf(w, "Either the requested item doesn't exist or access was denied")
 		if respErr != nil {
 			s.logger.Errorw(logUnableToRespond,
-				"request", reqToJson(authReqToReq(req)))
+				"request", reqToSafeStruct(authReqToReq(req)))
 		}
 		return absPath, nil, statErr
 	}
