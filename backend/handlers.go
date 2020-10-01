@@ -68,7 +68,7 @@ type walkData struct {
 
 type tempLink struct {
 	Path      string
-	timeStamp int64
+	timeStamp time.Time
 }
 
 func (s *Server) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
@@ -123,7 +123,7 @@ func (s *Server) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedReque
 		return
 	}
 	fileUUID := uuid.New().String()
-	timeStamp := time.Now().Unix() + 60*60*48 // adds 48 hours to the link
+	timeStamp := time.Now().Add(time.Hour * 24 * 2)
 	filePath := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	s.tempLinksLock.Lock()
 	s.tempLinks[fileUUID] = tempLink{
@@ -143,7 +143,7 @@ func (s *Server) TempHandler(w http.ResponseWriter, req *http.Request) {
 	s.tempLinksLock.Lock()
 	linkInfo, ok := s.tempLinks[requestedUUID]
 	s.tempLinksLock.Unlock()
-	if !ok || linkInfo.timeStamp < time.Now().Unix() {
+	if !ok || linkInfo.timeStamp.Before(time.Now()) {
 		s.E404(w, req)
 		return
 	}
@@ -155,7 +155,7 @@ func (s *Server) TempHandler(w http.ResponseWriter, req *http.Request) {
 func (s *Server) linkClean() { // remove out of date links
 	s.tempLinksLock.Lock()
 	for k, v := range s.tempLinks {
-		if v.timeStamp < time.Now().Unix() {
+		if v.timeStamp.Before(time.Now()) {
 			delete(s.tempLinks, k)
 		}
 	}
