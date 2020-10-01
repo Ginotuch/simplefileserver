@@ -12,7 +12,6 @@ import (
 
 	auth "github.com/abbot/go-http-auth"
 	"github.com/google/uuid"
-	"golang.org/x/sys/unix"
 )
 
 func (s *Server) E404(w http.ResponseWriter, req *http.Request) {
@@ -74,16 +73,8 @@ type tempLink struct {
 
 func (s *Server) Walk(w http.ResponseWriter, req *auth.AuthenticatedRequest) {
 	requestedFolder := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
-	absPath := path.Join(s.rootDir, requestedFolder)
-
-	fileInfo, err := os.Stat(absPath)
-	if unix.Access(absPath, unix.R_OK) != nil || err != nil || !fileInfo.IsDir() {
-		s.logger.Warnw(logPathDenied, "request", reqToJson(authReqToReq(req)))
-		w.WriteHeader(http.StatusNotFound)
-		_, err = fmt.Fprintf(w, "Either the requested directory doesn't exist or access was denied")
-		if err != nil {
-			s.logger.Errorw(logUnableToRespond, "request", reqToJson(authReqToReq(req)))
-		}
+	absPath, _, err := s.checkThing(w, req)
+	if err != nil {
 		return
 	}
 
@@ -176,16 +167,24 @@ func (s *Server) checkThing(w http.ResponseWriter, req *auth.AuthenticatedReques
 	absPath := path.Join(s.rootDir, requestedThing)
 
 	fileInfo, statErr := os.Stat(absPath)
-	if unix.Access(absPath, unix.R_OK) != nil || statErr != nil {
+	fileHandle, openErr := os.Open(absPath)
+	if openErr != nil || statErr != nil {
+		if fileHandle != nil {
+			_ = fileHandle.Close()
+		}
 		s.logger.Warnw(logPathDenied,
-			"request", req)
+			"request", reqToJson(authReqToReq(req)), "statErr", statErr, "openErr", openErr)
 		w.WriteHeader(http.StatusNotFound)
 		_, respErr := fmt.Fprintf(w, "Either the requested item doesn't exist or access was denied")
 		if respErr != nil {
 			s.logger.Errorw(logUnableToRespond,
-				"request", req)
+				"request", reqToJson(authReqToReq(req)))
 		}
 		return absPath, nil, statErr
+	}
+	err := fileHandle.Close()
+	if err != nil {
+
 	}
 	return absPath, fileInfo, nil
 }
