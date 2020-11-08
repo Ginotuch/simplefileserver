@@ -50,13 +50,14 @@ const (
 )
 
 type Server struct {
-	mux           *http.ServeMux
-	logger        *zap.SugaredLogger
-	logLevel      int
-	rootDir       string
-	walkTemplate  *template.Template
-	tempLinks     map[string]tempLink
-	tempLinksLock sync.RWMutex
+	mux            *http.ServeMux
+	logger         *zap.SugaredLogger
+	logLevel       int
+	rootDir        string
+	walkTemplate   *template.Template
+	tempLinks      map[string]tempLink
+	tempLinksHours int
+	tempLinksLock  sync.RWMutex
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -75,7 +76,7 @@ func (s *Server) closeHandlerSetup() { // silently close without printing on ctr
 	}()
 }
 
-func NewServer(rootDir string, logLevel zapcore.Level) *Server {
+func NewServer(rootDir string, logLevel zapcore.Level, expire int) *Server {
 	cfg := zap.NewProductionConfig()
 	cfg.OutputPaths = append(cfg.OutputPaths, "./log.log")
 	cfg.ErrorOutputPaths = append(cfg.ErrorOutputPaths, "./log.log")
@@ -92,7 +93,14 @@ func NewServer(rootDir string, logLevel zapcore.Level) *Server {
 		logger.Fatalw("Failed to parse walkHTML template")
 	}
 
-	newServer := &Server{mux: http.NewServeMux(), logger: logger, rootDir: rootDir, walkTemplate: t, tempLinks: make(map[string]tempLink)}
+	newServer := &Server{
+		mux:            http.NewServeMux(),
+		logger:         logger,
+		rootDir:        rootDir,
+		walkTemplate:   t,
+		tempLinks:      make(map[string]tempLink),
+		tempLinksHours: expire,
+	}
 
 	authenticator := auth.NewBasicAuthenticator("simplefileserver", auth.HtdigestFileProvider(".htdigest"))
 

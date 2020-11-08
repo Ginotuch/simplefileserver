@@ -123,7 +123,7 @@ func (s *Server) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedReque
 		return
 	}
 	fileUUID := uuid.New().String()
-	timeStamp := time.Now().Add(time.Hour * 24 * 2)
+	timeStamp := time.Now().Add(time.Hour * time.Duration(s.tempLinksHours))
 	filePath := path.Join(strings.Split(req.URL.Path, "/")[2:]...)
 	s.tempLinksLock.Lock()
 	s.tempLinks[fileUUID] = tempLink{
@@ -131,7 +131,7 @@ func (s *Server) GetTempLink(w http.ResponseWriter, req *auth.AuthenticatedReque
 		timeStamp: timeStamp,
 	}
 	s.tempLinksLock.Unlock()
-	_, err = fmt.Fprintf(w, "File: %s\nTemporary link: https://%s\n\n\nOnly valid for 48 hours", filePath, path.Join(req.Host, "temp", fileUUID))
+	_, err = fmt.Fprintf(w, "File: %s\nTemporary link: https://%s\n\n\nOnly valid for %d hours", filePath, path.Join(req.Host, "temp", fileUUID), s.tempLinksHours)
 	if err != nil {
 		s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(authReqToReq(req)))
 	}
