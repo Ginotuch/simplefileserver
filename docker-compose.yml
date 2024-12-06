@@ -1,0 +1,20 @@
+version: '3.7'
+services:
+  simplefileserver:
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      ROOT_DIR: "/app/files"
+      PORT: "8090"
+      CERT_FILE: "/app/certs/localhost.crt"
+      KEY_FILE: "/app/certs/localhost.key"
+      TEMP_LINK_EXPIRE: "48"
+      BASIC_USER: "admin"
+      BASIC_PASS: "secret"
+      TEMP_LINK_BASE: "/temp"
+    volumes:
+      - ./files:/app/files
+      - ./certs:/app/certs
+    # After starting, access via https://localhost:8090
+    # Basic Auth credentials: admin / secret

@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	auth "github.com/abbot/go-http-auth"
 )
 
 func (s *Server) downloadFolder(w http.ResponseWriter, absPath string) {
@@ -19,7 +17,7 @@ func (s *Server) downloadFolder(w http.ResponseWriter, absPath string) {
 	zipWriter := zip.NewWriter(w)
 
 	walkErr := filepath.Walk(absPath, func(filePath string, info os.FileInfo, err error) error {
-		if info.IsDir() {
+		if info == nil || info.IsDir() {
 			return nil
 		}
 		zipPath := path.Join(strings.Split(filePath, "/")[len(strings.Split(absPath, "/"))-1:]...)
@@ -29,6 +27,10 @@ func (s *Server) downloadFolder(w http.ResponseWriter, absPath string) {
 			s.logger.Errorw("Zipping file to folder failed", "folder", absPath, "file", zipPath, "error", err)
 		}
 		fileReader, err := os.Open(filePath)
+		if err != nil {
+			s.logger.Errorw("Failed to open file for zipping", "error", err)
+			return nil
+		}
 		_, err = io.Copy(fileWriter, fileReader)
 		if err != nil {
 			s.logger.Errorw("Zip write failed (most likely download stopped by user)", "folder", absPath, "file", zipPath, "error", err)
@@ -44,31 +46,30 @@ func (s *Server) downloadFolder(w http.ResponseWriter, absPath string) {
 	}
 	err := zipWriter.Close()
 	if err != nil {
-		s.logger.Errorw("Failed to close zip file", "folder", absPath, "error", walkErr)
+		s.logger.Errorw("Failed to close zip file", "folder", absPath, "error", err)
 	}
 }
 
-func (s *Server) downloadFile(w http.ResponseWriter, req *auth.AuthenticatedRequest, absPath string) {
+func (s *Server) downloadFile(w http.ResponseWriter, req *http.Request, absPath string) {
 	file, err := os.Open(absPath)
 	if err != nil {
-		s.logger.Warnw("", "request", reqToSafeStruct(authReqToReq(req)), "error", err)
+		s.logger.Warnw("", "request", reqToSafeStruct(req), "error", err)
 		_, err = fmt.Fprintf(w, "Unable to get file")
 		if err != nil {
-			s.logger.Errorw(logUnableToRespond, "request", reqToSafeStruct(authReqToReq(req)))
+			s.logger.Errorw("Unable to respond", "request", reqToSafeStruct(req))
 		}
 		return
 	}
+	defer file.Close()
 
-	var ftime time.Time
 	fileStat, err := os.Stat(absPath)
-
+	var ftime time.Time
 	if err != nil {
 		ftime = time.Time{}
 	} else {
-		ftime = fileStat.ModTime() // doesn't seem to actually set file dates
+		ftime = fileStat.ModTime()
 	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", path.Base(req.URL.Path)))
 
-	http.ServeContent(w, authReqToReq(req), path.Base(req.URL.Path), ftime, file)
-	_ = file.Close()
+	http.ServeContent(w, req, path.Base(req.URL.Path), ftime, file)
 }
